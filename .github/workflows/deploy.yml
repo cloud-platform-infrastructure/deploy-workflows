@@ -75,7 +75,7 @@ jobs:
           if [[ -n "${{ inputs.kustomize_dir }}" ]]; then
             KUSTOMIZE_DIR="${{ inputs.kustomize_dir }}"
           else
-            KUSTOMIZE_DIR="k8s/application/${SERVICE_NAME}/overlays/${ENV_NAME}"
+            KUSTOMIZE_DIR="k8s/overlays/${ENV_NAME}"
           fi
 
           # Cluster name padrão (mesmo padrão do seu infra)
