@@ -85,15 +85,15 @@ jobs:
           case "${ENV_NAME}" in
             staging)
               ROLE_KUBECONFIG="${{ secrets.AWS_ROLE_ARN_EKS_KUBECONFIG_STAGING }}"
-              ROLE_KUBECTL="${{ secrets.AWS_ROLE_ARN_KUBECTL_STAGING }}"
+              ROLE_KUBECTL="${{ secrets.AWS_ROLE_ARN_EKS_KUBECTL_STAGING }}"
               ;;
             dev)
-              ROLE_KUBECONFIG="${{ secrets.AWS_ROLE_ARN_KUBECONFIG_DEV }}"
-              ROLE_KUBECTL="${{ secrets.AWS_ROLE_ARN_KUBECTL_DEV }}"
+              ROLE_KUBECONFIG="${{ secrets.AWS_ROLE_ARN_EKS_KUBECONFIG_DEV }}"
+              ROLE_KUBECTL="${{ secrets.AWS_ROLE_ARN_EKS_KUBECTL_DEV }}"
               ;;
             prod)
-              ROLE_KUBECONFIG="${{ secrets.AWS_ROLE_ARN_KUBECONFIG_PROD }}"
-              ROLE_KUBECTL="${{ secrets.AWS_ROLE_ARN_KUBECTL_PROD }}"
+              ROLE_KUBECONFIG="${{ secrets.AWS_ROLE_ARN_EKS_KUBECONFIG_PROD }}"
+              ROLE_KUBECTL="${{ secrets.AWS_ROLE_ARN_EKS_KUBECTL_PROD }}"
               ;;
             *)
               echo "Unknown env_name=${ENV_NAME}" >&2
