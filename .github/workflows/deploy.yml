@@ -37,14 +37,12 @@ on:
         required: true
       AWS_ACCOUNT_ID:
         required: true
-      # Role 1: apenas para rodar aws eks update-kubeconfig (DescribeCluster)
       AWS_ROLE_ARN_KUBECONFIG_STAGING:
         required: true
       AWS_ROLE_ARN_KUBECONFIG_DEV:
         required: false
       AWS_ROLE_ARN_KUBECONFIG_PROD:
         required: false
-      # Role 2: role mapeada no cluster (kubectl admin)
       AWS_ROLE_ARN_KUBECTL_STAGING:
         required: true
       AWS_ROLE_ARN_KUBECTL_DEV:
