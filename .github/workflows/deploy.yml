@@ -166,7 +166,7 @@ jobs:
           kubectl kustomize "${DIR}" | kubectl apply -f -
 
       - name: Update Deployment image (optional)
-        if: ${{ inputs.image_tag != '' && steps.cfg.outputs.namespace != '' && steps.cfg.outputs.deployment_name != '' && steps.cfg.outputs.container_name != '' }}
+        if: ${{ inputs.image_tag != '' && inputs.image_tag != 'KEEP_CURRENT_IMAGE' && steps.cfg.outputs.namespace != '' && steps.cfg.outputs.deployment_name != '' && steps.cfg.outputs.container_name != '' }}
         shell: bash
         run: |
           set -euo pipefail
