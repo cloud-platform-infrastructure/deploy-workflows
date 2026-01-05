@@ -39,11 +39,11 @@ on:
         required: false
       AWS_ROLE_ARN_KUBECONFIG_PROD:
         required: false
-      AWS_ROLE_ARN_KUBECTL_STAGING:
+      AWS_ROLE_ARN_EKS_KUBECTL_STAGING:
         required: true
-      AWS_ROLE_ARN_KUBECTL_DEV:
+      AWS_ROLE_ARN_EKS_KUBECTL_DEV:
         required: false
-      AWS_ROLE_ARN_KUBECTL_PROD:
+      AWS_ROLE_ARN_EKS_KUBECTL_PROD:
         required: false
 
 permissions:
