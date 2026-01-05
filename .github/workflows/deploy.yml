@@ -182,8 +182,39 @@ jobs:
           echo "Setting image: ${NS} deployment/${DEP} ${CTR}=${IMAGE_URI}"
           kubectl -n "${NS}" set image "deployment/${DEP}" "${CTR}=${IMAGE_URI}"
 
-      - name: Rollout status (optional)
+      - name: Decide if rollout should run
+        id: rollout
         if: ${{ steps.cfg.outputs.namespace != '' && steps.cfg.outputs.deployment_name != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          NS="${{ steps.cfg.outputs.namespace }}"
+          DEP="${{ steps.cfg.outputs.deployment_name }}"
+
+          # If the Deployment does not exist yet (first apply), kubectl may fail here.
+          # In that case, we skip rollout to avoid failing the pipeline.
+          IMAGE=$(kubectl -n "${NS}" get deploy "${DEP}" -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+
+          # Heuristics for "placeholder / invalid" image strings
+          # (adjust patterns later if you have a specific placeholder convention)
+          if [[ -z "${IMAGE}" ]]; then
+            echo "Rollout will be skipped: Deployment has no image yet (likely first apply)." >&2
+            echo "should_rollout=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if echo "${IMAGE}" | grep -Eqi '(changeme|replace|todo|<image>|IMAGE_TAG|KEEP_CURRENT_IMAGE)'; then
+            echo "Rollout will be skipped: Deployment image looks like a placeholder: ${IMAGE}" >&2
+            echo "should_rollout=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Detected Deployment image: ${IMAGE}"
+          echo "should_rollout=true" >> "$GITHUB_OUTPUT"
+
+      - name: Rollout status (optional)
+        if: ${{ steps.cfg.outputs.namespace != '' && steps.cfg.outputs.deployment_name != '' && steps.rollout.outputs.should_rollout == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
