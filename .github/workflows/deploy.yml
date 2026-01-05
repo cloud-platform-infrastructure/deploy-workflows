@@ -220,30 +220,20 @@ jobs:
           set -euo pipefail
           kubectl -n "${{ steps.cfg.outputs.namespace }}" rollout status "deployment/${{ steps.cfg.outputs.deployment_name }}" --timeout=300s
 
-      - name: Print /etc/hosts update command (paste-ready)
+      - name: Print LoadBalancer DNS
         shell: bash
         run: |
           set -euo pipefail
-
-          sudo apt-get update -y
-          sudo apt-get install -y dnsutils
 
           SVC_NS="ingress-nginx"
           SVC_NAME="ingress-nginx-controller"
 
           LB_HOSTNAME=$(kubectl -n "${SVC_NS}" get svc "${SVC_NAME}" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' || true)
+
           if [[ -z "${LB_HOSTNAME}" ]]; then
-            echo "LoadBalancer hostname not available yet for ${SVC_NS}/${SVC_NAME}." >&2
-            echo "Try again later: kubectl -n ${SVC_NS} get svc ${SVC_NAME}" >&2
+            echo "LoadBalancer DNS not available yet for ${SVC_NS}/${SVC_NAME}."
             exit 0
           fi
 
-          LB_IP=$(dig +short "${LB_HOSTNAME}" | head -n 1 || true)
-          if [[ -z "${LB_IP}" ]]; then
-            echo "Could not resolve an IP for: ${LB_HOSTNAME} (yet). Try again later." >&2
-            exit 0
-          fi
-
-          HOST="application-${ENV_NAME}.local"
-
-          echo "sudo sh -c \"grep -vE '^[[:space:]]*[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+[[:space:]]+${HOST}([[:space:]]|$)' /etc/hosts > /etc/hosts.tmp && mv /etc/hosts.tmp /etc/hosts && echo '${LB_IP} ${HOST}' >> /etc/hosts\""
+          echo "LoadBalancer DNS:"
+          echo "${LB_HOSTNAME}"
