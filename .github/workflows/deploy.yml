@@ -33,7 +33,7 @@ on:
         required: false
         type: string
     secrets:
-      AWS_ROLE_ARN_KUBECONFIG_STAGING:
+      AWS_ROLE_ARN_EKS_KUBECONFIG_STAGING:
         required: true
       AWS_ROLE_ARN_KUBECONFIG_DEV:
         required: false
@@ -84,7 +84,7 @@ jobs:
           # Seleciona roles (kubeconfig + kubectl) por env
           case "${ENV_NAME}" in
             staging)
-              ROLE_KUBECONFIG="${{ secrets.AWS_ROLE_ARN_KUBECONFIG_STAGING }}"
+              ROLE_KUBECONFIG="${{ secrets.AWS_ROLE_ARN_EKS_KUBECONFIG_STAGING }}"
               ROLE_KUBECTL="${{ secrets.AWS_ROLE_ARN_KUBECTL_STAGING }}"
               ;;
             dev)
