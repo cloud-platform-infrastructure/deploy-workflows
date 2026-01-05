@@ -1,0 +1,187 @@
+name: Deploy (Kubernetes)
+
+on:
+  # Chamado por outros repos (frontend/backend)
+  workflow_call:
+    inputs:
+      env_name:
+        description: "Environment name (staging/dev/prod)"
+        required: true
+        type: string
+      service_name:
+        description: "Service name (frontend/backend)"
+        required: true
+        type: string
+      image_tag:
+        description: "Image tag to deploy (optional). If empty, only applies manifests."
+        required: false
+        type: string
+      kustomize_dir:
+        description: "Kustomize dir to apply (optional). Default derived from service_name/env_name."
+        required: false
+        type: string
+      namespace:
+        description: "Kubernetes namespace (optional). Used for set image / rollout."
+        required: false
+        type: string
+      deployment_name:
+        description: "Kubernetes Deployment name (optional). Used for set image / rollout."
+        required: false
+        type: string
+      container_name:
+        description: "Container name inside the Deployment (optional). Used for set image."
+        required: false
+        type: string
+    secrets:
+      AWS_REGION:
+        required: true
+      AWS_ACCOUNT_ID:
+        required: true
+      # Role 1: apenas para rodar aws eks update-kubeconfig (DescribeCluster)
+      AWS_ROLE_ARN_KUBECONFIG_STAGING:
+        required: true
+      AWS_ROLE_ARN_KUBECONFIG_DEV:
+        required: false
+      AWS_ROLE_ARN_KUBECONFIG_PROD:
+        required: false
+      # Role 2: role mapeada no cluster (kubectl admin)
+      AWS_ROLE_ARN_KUBECTL_STAGING:
+        required: true
+      AWS_ROLE_ARN_KUBECTL_DEV:
+        required: false
+      AWS_ROLE_ARN_KUBECTL_PROD:
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+
+    env:
+      ENV_NAME: ${{ inputs.env_name }}
+      SERVICE_NAME: ${{ inputs.service_name }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
+    steps:
+      - name: Checkout (deployment repo)
+        uses: actions/checkout@v4
+
+      - name: Resolve variables (paths/cluster/roles)
+        id: cfg
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Kustomize dir default (ajuste o padrão se seu repo usar outra estrutura)
+          if [[ -n "${{ inputs.kustomize_dir }}" ]]; then
+            KUSTOMIZE_DIR="${{ inputs.kustomize_dir }}"
+          else
+            KUSTOMIZE_DIR="k8s/application/${SERVICE_NAME}/overlays/${ENV_NAME}"
+          fi
+
+          # Cluster name padrão (mesmo padrão do seu infra)
+          CLUSTER_NAME="slack-enterprise-study-${ENV_NAME}-use1-eks"
+
+          # Seleciona roles (kubeconfig + kubectl) por env
+          case "${ENV_NAME}" in
+            staging)
+              ROLE_KUBECONFIG="${{ secrets.AWS_ROLE_ARN_KUBECONFIG_STAGING }}"
+              ROLE_KUBECTL="${{ secrets.AWS_ROLE_ARN_KUBECTL_STAGING }}"
+              ;;
+            dev)
+              ROLE_KUBECONFIG="${{ secrets.AWS_ROLE_ARN_KUBECONFIG_DEV }}"
+              ROLE_KUBECTL="${{ secrets.AWS_ROLE_ARN_KUBECTL_DEV }}"
+              ;;
+            prod)
+              ROLE_KUBECONFIG="${{ secrets.AWS_ROLE_ARN_KUBECONFIG_PROD }}"
+              ROLE_KUBECTL="${{ secrets.AWS_ROLE_ARN_KUBECTL_PROD }}"
+              ;;
+            *)
+              echo "Unknown env_name=${ENV_NAME}" >&2
+              exit 1
+              ;;
+          esac
+
+          if [[ -z "${ROLE_KUBECONFIG}" || -z "${ROLE_KUBECTL}" ]]; then
+            echo "Missing role secret for env=${ENV_NAME}" >&2
+            exit 1
+          fi
+
+          # Namespace/deployment defaults (opcionais)
+          NAMESPACE="${{ inputs.namespace }}"
+          DEPLOYMENT_NAME="${{ inputs.deployment_name }}"
+          CONTAINER_NAME="${{ inputs.container_name }}"
+
+          echo "kustomize_dir=${KUSTOMIZE_DIR}" >> "$GITHUB_OUTPUT"
+          echo "cluster_name=${CLUSTER_NAME}" >> "$GITHUB_OUTPUT"
+          echo "role_kubeconfig=${ROLE_KUBECONFIG}" >> "$GITHUB_OUTPUT"
+          echo "role_kubectl=${ROLE_KUBECTL}" >> "$GITHUB_OUTPUT"
+          echo "namespace=${NAMESPACE}" >> "$GITHUB_OUTPUT"
+          echo "deployment_name=${DEPLOYMENT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "container_name=${CONTAINER_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials (OIDC - kubeconfig role)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ steps.cfg.outputs.role_kubeconfig }}
+          audience: sts.amazonaws.com
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.29.0
+
+      - name: Update kubeconfig
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws eks update-kubeconfig \
+            --name "${{ steps.cfg.outputs.cluster_name }}" \
+            --region "${AWS_REGION}"
+
+      - name: Configure AWS credentials (OIDC - kubectl role)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ steps.cfg.outputs.role_kubectl }}
+          audience: sts.amazonaws.com
+
+      - name: Apply manifests (kustomize)
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR="${{ steps.cfg.outputs.kustomize_dir }}"
+          echo "Applying: ${DIR}"
+          kubectl kustomize "${DIR}" | kubectl apply -f -
+
+      - name: Update Deployment image (optional)
+        if: ${{ inputs.image_tag != '' && steps.cfg.outputs.namespace != '' && steps.cfg.outputs.deployment_name != '' && steps.cfg.outputs.container_name != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="${{ inputs.image_tag }}"
+          NS="${{ steps.cfg.outputs.namespace }}"
+          DEP="${{ steps.cfg.outputs.deployment_name }}"
+          CTR="${{ steps.cfg.outputs.container_name }}"
+
+          # Padrão ECR (ajuste se seu nome de repo for diferente)
+          # Ex: slack-enterprise-study-staging-use1-frontend / backend
+          ECR_REPO="slack-enterprise-study-${ENV_NAME}-use1-${SERVICE_NAME}"
+          IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${TAG}"
+
+          echo "Setting image: ${NS} deployment/${DEP} ${CTR}=${IMAGE_URI}"
+          kubectl -n "${NS}" set image "deployment/${DEP}" "${CTR}=${IMAGE_URI}"
+
+      - name: Rollout status (optional)
+        if: ${{ steps.cfg.outputs.namespace != '' && steps.cfg.outputs.deployment_name != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl -n "${{ steps.cfg.outputs.namespace }}" rollout status "deployment/${{ steps.cfg.outputs.deployment_name }}" --timeout=300s
