@@ -33,10 +33,6 @@ on:
         required: false
         type: string
     secrets:
-      AWS_REGION:
-        required: true
-      AWS_ACCOUNT_ID:
-        required: true
       AWS_ROLE_ARN_KUBECONFIG_STAGING:
         required: true
       AWS_ROLE_ARN_KUBECONFIG_DEV:
@@ -62,8 +58,8 @@ jobs:
     env:
       ENV_NAME: ${{ inputs.env_name }}
       SERVICE_NAME: ${{ inputs.service_name }}
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
 
     steps:
       - name: Checkout (deployment repo)
