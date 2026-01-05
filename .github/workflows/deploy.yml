@@ -1,7 +1,6 @@
 name: Deploy (Kubernetes)
 
 on:
-  # Chamado por outros repos (frontend/backend)
   workflow_call:
     inputs:
       env_name:
@@ -74,7 +73,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Kustomize dir default (ajuste o padrão se seu repo usar outra estrutura)
+          # Kustomize dir default
           if [[ -n "${{ inputs.kustomize_dir }}" ]]; then
             KUSTOMIZE_DIR="${{ inputs.kustomize_dir }}"
           else
@@ -93,10 +92,8 @@ jobs:
             fi
           fi
 
-          # Cluster name padrão (mesmo padrão do seu infra)
           CLUSTER_NAME="slack-enterprise-study-${ENV_NAME}-use1-eks"
 
-          # Seleciona roles (kubeconfig + kubectl) por env
           case "${ENV_NAME}" in
             staging)
               ROLE_KUBECONFIG="${{ secrets.AWS_ROLE_ARN_EKS_KUBECONFIG_STAGING }}"
@@ -121,7 +118,6 @@ jobs:
             exit 1
           fi
 
-          # Namespace/deployment defaults (opcionais)
           NAMESPACE="${{ inputs.namespace }}"
           DEPLOYMENT_NAME="${{ inputs.deployment_name }}"
           CONTAINER_NAME="${{ inputs.container_name }}"
@@ -180,8 +176,6 @@ jobs:
           DEP="${{ steps.cfg.outputs.deployment_name }}"
           CTR="${{ steps.cfg.outputs.container_name }}"
 
-          # Padrão ECR (ajuste se seu nome de repo for diferente)
-          # Ex: slack-enterprise-study-staging-use1-frontend / backend
           ECR_REPO="slack-enterprise-study-${ENV_NAME}-use1-${SERVICE_NAME}"
           IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${TAG}"
 
@@ -194,3 +188,31 @@ jobs:
         run: |
           set -euo pipefail
           kubectl -n "${{ steps.cfg.outputs.namespace }}" rollout status "deployment/${{ steps.cfg.outputs.deployment_name }}" --timeout=300s
+
+      - name: Print /etc/hosts update command (paste-ready)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update -y
+          sudo apt-get install -y dnsutils
+
+          SVC_NS="ingress-nginx"
+          SVC_NAME="ingress-nginx-controller"
+
+          LB_HOSTNAME=$(kubectl -n "${SVC_NS}" get svc "${SVC_NAME}" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' || true)
+          if [[ -z "${LB_HOSTNAME}" ]]; then
+            echo "LoadBalancer hostname not available yet for ${SVC_NS}/${SVC_NAME}." >&2
+            echo "Try again later: kubectl -n ${SVC_NS} get svc ${SVC_NAME}" >&2
+            exit 0
+          fi
+
+          LB_IP=$(dig +short "${LB_HOSTNAME}" | head -n 1 || true)
+          if [[ -z "${LB_IP}" ]]; then
+            echo "Could not resolve an IP for: ${LB_HOSTNAME} (yet). Try again later." >&2
+            exit 0
+          fi
+
+          HOST="application-${ENV_NAME}.local"
+
+          echo "sudo sh -c \"grep -vE '^[[:space:]]*[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+[[:space:]]+${HOST}([[:space:]]|$)' /etc/hosts > /etc/hosts.tmp && mv /etc/hosts.tmp /etc/hosts && echo '${LB_IP} ${HOST}' >> /etc/hosts\""
