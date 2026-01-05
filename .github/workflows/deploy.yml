@@ -62,8 +62,11 @@ jobs:
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
 
     steps:
-      - name: Checkout (deployment repo)
+      - name: Checkout manifests repo (caller)
         uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.ref }}
 
       - name: Resolve variables (paths/cluster/roles)
         id: cfg
@@ -75,7 +78,19 @@ jobs:
           if [[ -n "${{ inputs.kustomize_dir }}" ]]; then
             KUSTOMIZE_DIR="${{ inputs.kustomize_dir }}"
           else
-            KUSTOMIZE_DIR="k8s/overlays/${ENV_NAME}"
+            # Default kustomize dir: support both patterns used across repos
+            # - k8s/overlays/<env>
+            # - k8s/overlay/<env>
+            if [[ -d "k8s/overlays/${ENV_NAME}" ]]; then
+              KUSTOMIZE_DIR="k8s/overlays/${ENV_NAME}"
+            elif [[ -d "k8s/overlay/${ENV_NAME}" ]]; then
+              KUSTOMIZE_DIR="k8s/overlay/${ENV_NAME}"
+            else
+              echo "Could not find kustomize overlay dir for env=${ENV_NAME}." >&2
+              echo "Tried: k8s/overlays/${ENV_NAME} and k8s/overlay/${ENV_NAME}" >&2
+              echo "You can pass inputs.kustomize_dir to override." >&2
+              exit 1
+            fi
           fi
 
           # Cluster name padrão (mesmo padrão do seu infra)
