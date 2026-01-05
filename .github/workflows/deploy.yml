@@ -182,4 +182,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+<<<<<<< HEAD
           kubectl -n "${{ steps.cfg.outputs.namespace }}" rollout status "deployment/${{ steps.cfg.outputs.deployment_name }}" --timeout=300s
+=======
+          kubectl -n "${{ steps.cfg.outputs.namespace }}" rollout status "deployment/${{ steps.cfg.outputs.deployment_name }}" --timeout=300s
+>>>>>>> 639f645 (ci: add reusable kubernetes deployment workflow)
