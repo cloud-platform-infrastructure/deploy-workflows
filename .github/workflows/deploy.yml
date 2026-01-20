@@ -31,19 +31,6 @@ on:
         description: "Container name inside the Deployment (optional). Used for set image."
         required: false
         type: string
-    secrets:
-      AWS_ROLE_ARN_EKS_KUBECONFIG_STAGING:
-        required: true
-      AWS_ROLE_ARN_KUBECONFIG_DEV:
-        required: false
-      AWS_ROLE_ARN_KUBECONFIG_PROD:
-        required: false
-      AWS_ROLE_ARN_EKS_KUBECTL_STAGING:
-        required: true
-      AWS_ROLE_ARN_EKS_KUBECTL_DEV:
-        required: false
-      AWS_ROLE_ARN_EKS_KUBECTL_PROD:
-        required: false
 
 permissions:
   id-token: write
